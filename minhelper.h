@@ -1,9 +1,14 @@
 #ifndef _MINHELPER_H
 #define _MINHELPER_H
 
+#include <stdio.h>
 #include <stdint.h>
+#include <unistd.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 
-#define MINIX_FS           0x4D5A
+#define MINIX_MAGIC        0x4D5A
 #define INODE_SIZE_BYTES   64
 #define DIR_SIZE_BYTES     64
 #define NR_PARTITIONS      4
@@ -12,12 +17,17 @@
 #define BOOT_BLOCK_SIZE    1000
 #define NO_PART            0x0
 #define MINIX_PART         0x81
+#define INODE_SIZE         64
+#define DIR_ENTRY_SIZE     64
+#define OFFSET             1024
+#define ROOT_DIR           1
+#define INODE_BLOCK        3
 #define NO_SUBPART         -1
 #define NO_PRIPART         -1
-#define DIRECT_ZONES 7
+#define DIRECT_ZONES       7
 
 /* TODO: should all structs be padded? */
-struct __attribute__ ((__packed__)) superblock { /* Minix Version 3 Superblock
+typedef struct __attribute__ ((__packed__)) { /* Minix Version 3 Superblock
                      * this structure found in fs/super.h
                      * * in minix 3.1.1
                      * */
@@ -35,9 +45,9 @@ struct __attribute__ ((__packed__)) superblock { /* Minix Version 3 Superblock
   int16_t pad3; /* make things line up again */
   uint16_t blocksize; /* block size in bytes */
   uint8_t subversion; /* filesystem sub–version */
-};
+} superblock;
 
-struct __attribute__ ((__packed__)) inode {
+typedef struct __attribute__ ((__packed__)) {
   uint16_t mode; /* mode */
   uint16_t links; /* number or links */
   uint16_t uid;
@@ -50,12 +60,12 @@ struct __attribute__ ((__packed__)) inode {
   uint32_t indirect;
   uint32_t two_indirect;
   uint32_t unused;
-};
+} inode;
 
 /* partition table entry */
 /* TODO: will partition table always be the same size? */
 
-struct __attribute__ ((__packed__)) part_entry {
+typedef struct __attribute__ ((__packed__)) {
   uint8_t bootind; /* boot magic number (0x80 if bootable)*/
   uint8_t start_head; /* start of partition */
   uint8_t start_sec; 
@@ -66,13 +76,23 @@ struct __attribute__ ((__packed__)) part_entry {
   uint8_t end_cyl;
   uint32_t lFirst;    /* First sectore (LBA addressing)*/
   uint32_t size;      /* size of partitioin (in sectors) */
-};
+} part_entry;
 
-struct __attribute__ ((__packed__)) part_table{
-  struct part_entry entries[NR_PARTITIONS];  
-};
+typedef struct __attribute__ ((__packed__)) {
+  part_entry entries[NR_PARTITIONS];  
+} part_table;
 
-int get_partition(int image_fd, int partition, int subpartition, int verbose);
-void get_superblock(int image_fd, int offset, struct superblock * sb);
+typedef struct {
+  uint32_t inode;
+  unsigned char name[60];
+}directory;
+
+/* helper functions */
+FILE *openImage(char *fname);
+superblock getSuperBlockData(FILE *img, int offset);
+directory getZone(uint16_t z1_size, uint16_t cur_dir, FILE *img);
+inode getInode(FILE *img, superblock sb, uint32_t i_num);
+uint16_t getZoneSize(superblock sb);
+int get_partition(FILE *img, int partition, int subpartition, int verbose);
 
 #endif /* _MINHELPER_H */

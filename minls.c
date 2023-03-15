@@ -5,13 +5,19 @@
 #include <fcntl.h>
 #include "minhelper.h"
 
+void printCurFile(directory dir, inode i_info);
+void printDirContents(uint16_t zoneSize, superblock sb, FILE *img);
+
 int main(int argc, char *argv[]){
   int verbose = 0;
   int sub_part = NO_SUBPART;
   int pri_part = NO_PRIPART;
-  int opt, offset, image_fd;
+  int opt, part_offset = 0;
   char * image_name;
   char * path = NULL;
+  superblock sb; 
+  uint16_t zone_size;
+  FILE * img;
 
   while ((opt = getopt(argc, argv, "vp:s:")) != -1){
     switch(opt){
@@ -52,17 +58,48 @@ int main(int argc, char *argv[]){
   printf("path: %s\n", path);
   
   /* open the image */
-
-  if ((image_fd = open(image_name, O_RDONLY)) < 0){
-    perror("open");
-    exit(EXIT_FAILURE);
-  }    
-
-  offset = get_partition(image_fd, pri_part, sub_part, verbose); 
+  img = openImage(image_name);
   
-  printf("offset: %x\n", offset);
+  if (pri_part != NO_PRIPART)
+    part_offset = get_partition(img, pri_part, sub_part, verbose); 
+           
+  printf("partition offset: %x\n", part_offset);
+  
+  part_offset = part_offset + OFFSET;
+  sb = getSuperBlockData(img, part_offset);
+  zone_size = getZoneSize(sb);
+  printDirContents(zone_size, sb, img); 
   
   exit(EXIT_SUCCESS); 
 }
 
+void printCurFile(directory dir, inode i_info)
+{
+  /*drwxr-xr-x 64 .*/
+    printf("%u %s\n", i_info.size, dir.name);
+}
+
+void printDirContents(uint16_t zoneSize, superblock sb, FILE *img)
+{
+  directory dir;
+  inode i_info;
+  uint32_t i = 0;
+  while(i >= 0)
+  {
+    dir = getZone(zoneSize, i, img);
+    /*if name is null, at end of directory*/
+    if(dir.name[0] == '\0')
+    {
+      break;
+    }
+    /*if dir or file exists*/
+    else if(dir.inode != 0)
+    {
+      /*add inode info like read permission*/
+      i_info = getInode(img, sb, dir.inode);
+      printCurFile(dir, i_info);
+    }
+    i++;    
+  }
+}
 
