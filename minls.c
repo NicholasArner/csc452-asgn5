@@ -6,7 +6,8 @@
 #include "minhelper.h"
 
 void printCurFile(directory dir, inode i_info);
-void printDirContents(uint16_t zoneSize, superblock sb, FILE *img);
+void printDirContents(uint16_t zoneSize, superblock sb, uint32_t part_offset,
+                      FILE *img);
 
 int main(int argc, char *argv[]){
   int verbose = 0;
@@ -62,13 +63,11 @@ int main(int argc, char *argv[]){
   
   if (pri_part != NO_PRIPART)
     part_offset = get_partition(img, pri_part, sub_part, verbose); 
-           
-  printf("partition offset: %x\n", part_offset);
-  
-  part_offset = part_offset + OFFSET;
-  sb = getSuperBlockData(img, part_offset);
+
+  printf("looking for superblock at: %x\n", part_offset + OFFSET);
+  sb = getSuperBlockData(img, part_offset + OFFSET, verbose);
   zone_size = getZoneSize(sb);
-  printDirContents(zone_size, sb, img); 
+  printDirContents(zone_size, sb, part_offset, img); 
   
   exit(EXIT_SUCCESS); 
 }
@@ -79,14 +78,15 @@ void printCurFile(directory dir, inode i_info)
     printf("%u %s\n", i_info.size, dir.name);
 }
 
-void printDirContents(uint16_t zoneSize, superblock sb, FILE *img)
+void printDirContents(uint16_t zoneSize, superblock sb, uint32_t part_offset,
+                      FILE *img)
 {
   directory dir;
   inode i_info;
   uint32_t i = 0;
   while(i >= 0)
   {
-    dir = getZone(zoneSize, i, img);
+    dir = getZone(zoneSize, i, sb.firstdata, part_offset, img);
     /*if name is null, at end of directory*/
     if(dir.name[0] == '\0')
     {
@@ -96,7 +96,7 @@ void printDirContents(uint16_t zoneSize, superblock sb, FILE *img)
     else if(dir.inode != 0)
     {
       /*add inode info like read permission*/
-      i_info = getInode(img, sb, dir.inode);
+      i_info = getInode(img, sb, dir.inode, part_offset);
       printCurFile(dir, i_info);
     }
     i++;    

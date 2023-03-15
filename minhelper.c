@@ -1,6 +1,7 @@
 #include "minhelper.h"
 /* This contains helper functions that are used by both minget and minls */
 
+int check_partition_table(FILE * img, int offset);
 void print_pt(part_table * pt);
 void print_sb(superblock * sb);
 
@@ -18,7 +19,7 @@ FILE *openImage(char *fname)
 }
 
 /*Finding superblock*/
-superblock getSuperBlockData(FILE *img, int offset)
+superblock getSuperBlockData(FILE *img, int offset, int verbose)
 {
   int foundBlock;
   superblock sblock;
@@ -33,15 +34,17 @@ superblock getSuperBlockData(FILE *img, int offset)
   {
     printf("Bad magic number. (0x%04x)\nThis doesn't look like a MINIX filesystem\n", sblock.magic);
     exit(EXIT_FAILURE);
-  }
+  }  
+  if (verbose) print_sb(&sblock);
   return sblock;
 } 
 
-directory getZone(uint16_t z1_size, uint16_t cur_zone, FILE *img)
+directory getZone(uint16_t z1_size, uint16_t cur_zone, uint16_t first_data, 
+                  uint32_t part_offset, FILE *img)
 {
   directory dir;
   uint32_t offset;
-  offset = (z1_size*16) + (DIR_ENTRY_SIZE * cur_zone);
+  offset = part_offset + (z1_size*first_data) + (DIR_ENTRY_SIZE * cur_zone);
 
   fseek(img, offset, SEEK_SET);
   fread(&dir, sizeof(directory), 1, img);
@@ -54,10 +57,11 @@ uint16_t getZoneSize(superblock sb)
 }
 
 /*TODO: need to work on indexing currectly only works to get inode 1*/
-inode getInode(FILE *img, superblock sb, uint32_t i_num)
+inode getInode(FILE *img, superblock sb, uint32_t i_num, uint32_t part_offset)
 {
   inode i;
-  fseek(img, ((sb.blocksize*INODE_BLOCK) + (sb.blocksize *i_num)), SEEK_SET);
+  fseek(img, (part_offset + (sb.blocksize*INODE_BLOCK) + 
+          (sb.blocksize *i_num)), SEEK_SET);
   fread(&i, sizeof(inode), 1, img);
   return i;
 }
@@ -72,10 +76,16 @@ int get_partition(FILE * img, int partition, int subpartition, int verbose){
   int offset;  
   int bytes;
   if (partition < 0 || partition > 3){
-    printf("get_partition: partition number must be between 1 and 4!\n");
+    printf("get_partition: partition number must be between 0 and 3!\n");
     exit(EXIT_FAILURE);
   }  
-  
+
+  /* check for valid partition table, need to check bytes 510 and 511 */  
+  if (!check_partition_table(img, 0)){
+    printf("Invalid partition table!\n");
+    exit(EXIT_FAILURE);
+  }
+
   /* skip the first 1k bytes to read the super block */
   if (fseek(img, PART_TABLE_ADDR, SEEK_SET) < 0){
     perror("lseek");
@@ -87,10 +97,13 @@ int get_partition(FILE * img, int partition, int subpartition, int verbose){
     exit(EXIT_FAILURE);
   } 
    
-  offset = pt.entries[partition].lFirst; 
+  offset = pt.entries[partition].lFirst * SECTOR_SIZE; 
   /* check that the partition is a minix partition type */  
   
-  if (verbose) print_pt(&pt);
+  if (verbose) {
+    printf("Primary Partition Table: \n");
+    print_pt(&pt);
+  }
 
   if (pt.entries[partition].type != MINIX_PART){
     printf("Invalid partition type (%x)\n", pt.entries[partition].type);
@@ -103,10 +116,16 @@ int get_partition(FILE * img, int partition, int subpartition, int verbose){
  
     /* TODO: do subpartitions need to be betwween 1 and 4? */
     if (subpartition < 0 || subpartition > 3){
-      printf("get_partition: subpartition number must be between 1 and 4!\n");
+      printf("get_partition: subpartition number must be between 0 and 3!\n");
       exit(EXIT_FAILURE);
     }  
   
+    /* check for valid partition table, need to check bytes 510 and 511 */  
+    if (!check_partition_table(img, offset)){
+      printf("Invalid subpartition table!\n");
+      exit(EXIT_FAILURE);
+    }
+
     /* skip the first 1k bytes to read the super block */
     if (fseek(img, offset + PART_TABLE_ADDR, SEEK_SET) < 0){
       perror("lseek");
@@ -118,17 +137,54 @@ int get_partition(FILE * img, int partition, int subpartition, int verbose){
       exit(EXIT_FAILURE);
     }
     
-    if (verbose) print_pt(&pt);
+    if (verbose) {
+      printf("Subpartition Table: \n");
+      print_pt(&sub_pt);
+    }
   
-    if (pt.entries[partition].type != MINIX_PART){
+    if (sub_pt.entries[subpartition].type != MINIX_PART){
       printf("Invalid partition type (%x)\n", pt.entries[partition].type);
       printf("This doesn't look like a MINIX filesystem.\n");
+      exit(EXIT_FAILURE);
     } 
-
-    offset = offset + sub_pt.entries[subpartition].lFirst;
+    
+    /* even subpartitions are absolute addresses */
+    offset = sub_pt.entries[subpartition].lFirst * SECTOR_SIZE;
   }
   
   return offset; 
+}
+
+int check_partition_table(FILE * img, int offset){
+  /* 
+   * helper function that checks for valid partition table 
+   * offset is only used when checking a subpartition table, otherwise it is 0
+   */
+  char valid1, valid2;  
+  int bytes;
+
+  if (fseek(img, VALID_TABLE_ADDR1, SEEK_SET) < 0){
+    perror("lseek");
+    exit(EXIT_FAILURE);
+  }
+
+  if ((bytes = fread(&valid1, sizeof(char), 1, img)) < 0){
+    perror("read");
+    exit(EXIT_FAILURE);
+  } 
+ 
+  if (fseek(img, VALID_TABLE_ADDR2, SEEK_SET) < 0){
+    perror("lseek");
+    exit(EXIT_FAILURE);
+  }
+
+  if ((bytes = fread(&valid2, sizeof(char), 1, img)) < 0){
+    perror("read");
+    exit(EXIT_FAILURE);
+  } 
+
+  return (valid1 == VALID_TABLE_BYTE1) || (valid2 == VALID_TABLE_BYTE2);
+  
 }
 
 void print_pt(part_table * pt){
@@ -143,9 +199,9 @@ void print_pt(part_table * pt){
   for (i=0; i<NR_PARTITIONS; i++){
     entry = pt->entries[i];
     if (entry.type == NO_PART){
-      return; 
-    }
-    
+      continue;
+    }    
+ 
     printf("Entry %d:\n", i);
     printf("\tbootind: %d\n", entry.bootind);
     printf("\tstart_head: %d\n", entry.start_head);
