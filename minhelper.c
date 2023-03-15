@@ -6,6 +6,7 @@
 #include "minhelper.h"
 
 void print_pt(struct part_table * pt);
+void print_sb(struct superblock * sb);
 
 int get_partition(int image_fd, int partition, int subpartition, int verbose){
   /* read the partition table at address 0x1BE and check that it is valid */
@@ -107,6 +108,11 @@ void print_pt(struct part_table * pt){
   /* print data for each valid entry in the partition table */
   int i;
   struct part_entry entry; 
+  if (pt == NULL){
+    printf("print_pt: null pointer!\n");
+    return
+  }
+
   for (i=0; i<NR_PARTITIONS; i++){
     entry = pt->entries[i];
     if (entry.type == NO_PART){
@@ -126,3 +132,22 @@ void print_pt(struct part_table * pt){
   }   
 }
 
+void print_sb(struct part_table * sb){
+  /* print data for each valid entry in the partition table */
+  if (sb == NULL){
+    printf("print_sb: null pointer!\n");
+    return;
+  }
+  
+  printf("Superblock:\n");
+  printf("\tninodes: %d\n", sb->inodes);
+  printf("\ti_blocks: %d\n", sb->i_blocks);
+  printf("\tz_blocks: %d\n", sb->zblocks;
+  printf("\tfirstdata: %x\n", sb->firstdata);
+  printf("\tlog_zone_size: %d\n", sb->log_zone_size);
+  printf("\tmax_file: %d\n", sb->max_file);
+  printf("\tzones: %d\n", sb->zones);
+  printf("\tmagic: %x\n", sb->magic);
+  printf("\tblocksize: %d\n", sb->blocksize);
+  printf("\tsubversion: %d\n", sb->subversion); 
+}
