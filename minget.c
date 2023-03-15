@@ -68,3 +68,33 @@ int main(int argc, char *argv[]){
   exit(EXIT_SUCCESS); 
 }
 
+void printCurFile(directory dir, inode i_info)                                  
+{                                                                               
+  /*drwxr-xr-x 64 .*/                                                           
+    printf("%u %s\n", i_info.size, dir.name);                                   
+}      
+
+void printDirContents(uint16_t zoneSize, superblock sb, uint32_t part_offset,   
+                      FILE *img)                                                
+{                                                                               
+  directory dir;                                                                
+  inode i_info;                                                                 
+  uint32_t i = 0;                                                               
+  while(i >= 0)                                                                 
+  {                                                                             
+    dir = getZone(zoneSize, i, sb.firstdata, part_offset, img);                 
+    /*if name is null, at end of directory*/                                    
+    if(dir.name[0] == '\0')                                                     
+    {                                                                           
+      break;                                                                    
+    }                                                                           
+    /*if dir or file exists*/                                                   
+    else if(dir.inode != 0)                                                     
+    {                                                                           
+      /*add inode info like read permission*/                                   
+      i_info = getInode(img, sb, dir.inode, part_offset);                       
+      printCurFile(dir, i_info);                                                
+    }                                                                           
+    i++;                                                                        
+  }                                                                             
+}    

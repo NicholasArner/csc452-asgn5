@@ -8,6 +8,7 @@
 void printCurFile(directory dir, inode i_info);
 void printDirContents(uint16_t zoneSize, superblock sb, uint32_t part_offset,
                       FILE *img);
+void printPermissions(uint16_t mode);
 
 int main(int argc, char *argv[]){
   int verbose = 0;
@@ -75,10 +76,10 @@ int main(int argc, char *argv[]){
 void printCurFile(directory dir, inode i_info)
 {
   /*drwxr-xr-x 64 .*/
-    printf("%u %s\n", i_info.size, dir.name);
+    printf("%9u %s\n", i_info.size, dir.name);
 }
 
-void printDirContents(uint16_t zoneSize, superblock sb, uint32_t part_offset,
+void printDirContents(uint16_t zoneSize, superblock sb, uint32_t part_offset, 
                       FILE *img)
 {
   directory dir;
@@ -86,7 +87,7 @@ void printDirContents(uint16_t zoneSize, superblock sb, uint32_t part_offset,
   uint32_t i = 0;
   while(i >= 0)
   {
-    dir = getZone(zoneSize, i, sb.firstdata, part_offset, img);
+    dir = getZone(sb, zoneSize, i, part_offset, img);
     /*if name is null, at end of directory*/
     if(dir.name[0] == '\0')
     {
@@ -97,9 +98,29 @@ void printDirContents(uint16_t zoneSize, superblock sb, uint32_t part_offset,
     {
       /*add inode info like read permission*/
       i_info = getInode(img, sb, dir.inode, part_offset);
+      printPermissions(i_info.mode);
       printCurFile(dir, i_info);
     }
     i++;    
   }
 }
-
+void printPermissions(uint16_t mode)
+{
+  char perm[11] = "";
+  char r = 'r';
+  char w = 'w';
+  char x = 'x';
+  char d = 'd';
+  char not = '-';
+  (mode & IS_DIR) ? strncat(perm, &d, 1) : strncat(perm, &not, 1);
+  (mode & OWN_R) ? strncat(perm, &r, 1) : strncat(perm, &not, 1);
+  (mode & OWN_W) ? strncat(perm, &w, 1) : strncat(perm, &not, 1);
+  (mode & OWN_X) ? strncat(perm, &x, 1) : strncat(perm, &not, 1);
+  (mode & GRP_R) ? strncat(perm, &r, 1) : strncat(perm, &not, 1);
+  (mode & GRP_W) ? strncat(perm, &w, 1) : strncat(perm, &not, 1);
+  (mode & GRP_X) ? strncat(perm, &x, 1) : strncat(perm, &not, 1);
+  (mode & OTR_R) ? strncat(perm, &r, 1) : strncat(perm, &not, 1);
+  (mode & OTR_W) ? strncat(perm, &w, 1) : strncat(perm, &not, 1);
+  (mode & OTR_X) ? strncat(perm, &x, 1) : strncat(perm, &not, 1);
+  printf("%s ", perm);
+}

@@ -32,20 +32,22 @@ superblock getSuperBlockData(FILE *img, int offset, int verbose)
   fread(&sblock, sizeof(superblock), 1, img);
   if(sblock.magic != MINIX_MAGIC)
   {
-    printf("Bad magic number. (0x%04x)\nThis doesn't look like a MINIX filesystem\n", sblock.magic);
+    printf("Bad magic number. "
+      "(0x%04x)\nThis doesn't look like a MINIX filesystem\n", sblock.magic);
     exit(EXIT_FAILURE);
-  }  
-  if (verbose) print_sb(&sblock);
+  }
+  
+  if (verbose) print_sb(&sblock);  
+
   return sblock;
 } 
 
-directory getZone(uint16_t z1_size, uint16_t cur_zone, uint16_t first_data, 
-                  uint32_t part_offset, FILE *img)
+directory getZone(superblock sb, uint16_t z1_size, 
+                  uint16_t cur_zone, uint32_t part_offset, FILE *img)
 {
   directory dir;
   uint32_t offset;
-  offset = part_offset + (z1_size*first_data) + (DIR_ENTRY_SIZE * cur_zone);
-
+  offset = part_offset + (z1_size*sb.firstdata) + (DIR_ENTRY_SIZE * cur_zone);
   fseek(img, offset, SEEK_SET);
   fread(&dir, sizeof(directory), 1, img);
   return dir;
@@ -60,8 +62,8 @@ uint16_t getZoneSize(superblock sb)
 inode getInode(FILE *img, superblock sb, uint32_t i_num, uint32_t part_offset)
 {
   inode i;
-  fseek(img, (part_offset + (sb.blocksize*INODE_BLOCK) + 
-          (sb.blocksize *i_num)), SEEK_SET);
+  uint32_t offset = part_offset + INODE_SIZE * (i_num - 1);
+  fseek(img, ((sb.blocksize*INODE_BLOCK) + offset), SEEK_SET);
   fread(&i, sizeof(inode), 1, img);
   return i;
 }

@@ -30,7 +30,20 @@
 #define VALID_TABLE_ADDR2  511
 #define VALID_TABLE_BYTE1  0x55
 #define VALID_TABLE_BYTE2  0xAA
-  
+
+/*File Types*/
+#define FILE_TYPE 0170000
+#define IS_REG    0100000
+#define IS_DIR    0040000
+#define OWN_R     0000400
+#define OWN_W     0000200
+#define OWN_X     0000100
+#define GRP_R     0000040
+#define GRP_W     0000020
+#define GRP_X     0000010
+#define OTR_R     0000004
+#define OTR_W     0000002
+#define OTR_X     0000001 
 
 /* TODO: should all structs be padded? */
 typedef struct __attribute__ ((__packed__)) { /* Minix Version 3 Superblock
@@ -96,7 +109,7 @@ typedef struct {
 /* helper functions */
 FILE *openImage(char *fname);
 superblock getSuperBlockData(FILE *img, int offset, int verbose);
-directory getZone(uint16_t z1_size, uint16_t cur_zone, uint16_t first_data,     
+directory getZone(superblock sb, uint16_t z1_size, uint16_t cur_zone,     
                   uint32_t part_offset, FILE *img); 
 inode getInode(FILE *img, superblock sb, uint32_t i_num, uint32_t part_offset);
 uint16_t getZoneSize(superblock sb);
