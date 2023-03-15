@@ -67,7 +67,6 @@ inode getInode(FILE *img, superblock sb, uint32_t i_num, uint32_t part_offset)
   fread(&i, sizeof(inode), 1, img);
   return i;
 }
-
 int get_partition(FILE * img, int partition, int subpartition, int verbose){
   /* read the partition table at address 0x1BE and check that it is valid */
   /* returns the absolute offset of the requested partition */

@@ -21,7 +21,7 @@
 #define DIR_ENTRY_SIZE     64
 #define OFFSET             1024
 #define ROOT_DIR           1
-#define INODE_BLOCK        3
+#define INODE_BLOCK        4
 #define NO_SUBPART         -1
 #define NO_PRIPART         -1
 #define DIRECT_ZONES       7
