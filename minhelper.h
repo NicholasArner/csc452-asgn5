@@ -21,7 +21,7 @@
 #define DIR_ENTRY_SIZE     64
 #define OFFSET             1024
 #define ROOT_DIR           1
-#define INODE_BLOCK        3
+#define INODE_BLOCK        4
 #define NO_SUBPART         -1
 #define NO_PRIPART         -1
 #define DIRECT_ZONES       7
@@ -30,6 +30,7 @@
 #define VALID_TABLE_ADDR2  511
 #define VALID_TABLE_BYTE1  0x55
 #define VALID_TABLE_BYTE2  0xAA
+#define DIRENT_NAME_SIZE   60
 
 /*File Types*/
 #define FILE_TYPE 0170000
@@ -82,7 +83,6 @@ typedef struct __attribute__ ((__packed__)) {
 } inode;
 
 /* partition table entry */
-/* TODO: will partition table always be the same size? */
 
 typedef struct __attribute__ ((__packed__)) {
   uint8_t bootind; /* boot magic number (0x80 if bootable)*/
@@ -103,7 +103,7 @@ typedef struct __attribute__ ((__packed__)) {
 
 typedef struct {
   uint32_t inode;
-  unsigned char name[60];
+  unsigned char name[DIRENT_NAME_SIZE];
 }directory;
 
 /* helper functions */
@@ -112,7 +112,20 @@ superblock getSuperBlockData(FILE *img, int offset, int verbose);
 directory getZone(superblock sb, uint16_t z1_size, uint16_t cur_zone,     
                   uint32_t part_offset, FILE *img); 
 inode getInode(FILE *img, superblock sb, uint32_t i_num, uint32_t part_offset);
-uint16_t getZoneSize(superblock sb);
+int getDataFromZone(inode i_info, uint16_t zoneSize, uint16_t cur_zone,         
+        uint16_t remaining_bytes, uint32_t part_offset, char * buff ,FILE *img);
+uint32_t getZoneSize(superblock sb);
 int get_partition(FILE *img, int partition, int subpartition, int verbose);
+
+void print_inode(inode *node);
+void printPermissions(uint16_t mode);
+
+directory getFinalDestination(superblock sb, uint32_t part_offset, 
+                      FILE *img, char *pathname);
+directory searchZones(FILE *img, superblock sb, uint32_t part_offset, 
+                        inode node, char *name);
+directory searchSingleZone(FILE *img, uint32_t zone_offset, 
+                            uint16_t dir_count, char *name);
+directory getDir(FILE *img, uint32_t offset);
 
 #endif /* _MINHELPER_H */

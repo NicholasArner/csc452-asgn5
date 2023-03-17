@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Werror -g
+CFLAGS = -Wall -g
 PROGS = minget minls
 OBJS = minget.o minls.o minhelper.o
 
