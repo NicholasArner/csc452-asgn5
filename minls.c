@@ -6,10 +6,10 @@
 #include "minhelper.h"
 
 void printCurFile(directory dir, inode i_info);
-void printDirContents(uint16_t zoneSize, superblock sb, uint32_t part_offset,
-                      FILE *img);
-void printPermissions(uint16_t mode);
-
+void printDirContents(superblock sb, uint32_t part_offset,
+                      FILE *img, inode node);
+void printDir(FILE *img, uint32_t offset, superblock sb, 
+              uint32_t part_offset);
 int main(int argc, char *argv[]){
   int verbose = 0;
   int sub_part = NO_SUBPART;
@@ -18,8 +18,10 @@ int main(int argc, char *argv[]){
   char * image_name;
   char * path = NULL;
   superblock sb; 
-  uint16_t zone_size;
+  uint32_t zone_size;
   FILE * img;
+  directory dir;
+  inode node;
 
   while ((opt = getopt(argc, argv, "vp:s:")) != -1){
     switch(opt){
@@ -29,12 +31,10 @@ int main(int argc, char *argv[]){
         break;
       }
       case 'p':{
-        printf("partition: %s\n", optarg); 
         pri_part = atoi(optarg);
         break;
       }
       case 's':{
-        printf("subpartition: %s\n", optarg);
         sub_part = atoi(optarg);
         break;
       }
@@ -56,71 +56,92 @@ int main(int argc, char *argv[]){
     path = argv[optind + 1]; 
   }
 
-  printf("image: %s\n", image_name);
-  printf("path: %s\n", path);
-  
   /* open the image */
   img = openImage(image_name);
   
   if (pri_part != NO_PRIPART)
     part_offset = get_partition(img, pri_part, sub_part, verbose); 
 
-  printf("looking for superblock at: %x\n", part_offset + OFFSET);
   sb = getSuperBlockData(img, part_offset + OFFSET, verbose);
   zone_size = getZoneSize(sb);
-  printDirContents(zone_size, sb, part_offset, img); 
+  if(path == NULL)
+  {
+    node = getInode(img, sb, ROOT_DIR, part_offset);
+    printf("/:\n");
+    printDirContents(sb, part_offset, img, node);
+    exit(EXIT_SUCCESS);
+  }
+  else
+  {
+    dir = getFinalDestination(sb, part_offset, img, path);
+    node = getInode(img, sb, dir.inode, part_offset);
+    /*print directory*/
+    if(node.mode & IS_DIR)
+    {
+      printf("%s:\n", path);
+      printDirContents(sb, part_offset, img, node); 
+    }
+    /*print files*/
+    else if(dir.inode == 0)
+    {
+      perror("deleted file");
+      exit(EXIT_FAILURE);
+    }
+    else 
+    {
+      printPermissions(node.mode);
+      printf("%9u %s\n", node.size, path);
+    }
+    exit(EXIT_SUCCESS); 
+  }
   
-  exit(EXIT_SUCCESS); 
 }
 
 void printCurFile(directory dir, inode i_info)
 {
-  /*drwxr-xr-x 64 .*/
-    printf("%9u %s\n", i_info.size, dir.name);
+  printf("%9u %s\n", i_info.size, dir.name);
 }
 
-void printDirContents(uint16_t zoneSize, superblock sb, uint32_t part_offset, 
-                      FILE *img)
+
+void printDirContents(superblock sb, uint32_t part_offset, 
+                      FILE *img, inode i_info)
+{
+  uint32_t tot_dir_cnt, offset, zone_size;
+  uint16_t dir_cnt_zone, cur_zone, cur_dir, tot_dir;
+  cur_dir = 0;
+  tot_dir = 0;
+  cur_zone = 0;
+  zone_size = getZoneSize(sb);
+  tot_dir_cnt = i_info.size / DIR_ENTRY_SIZE;
+  dir_cnt_zone = zone_size / DIR_ENTRY_SIZE;
+
+  while(cur_zone < DIRECT_ZONES)
+  {
+    while(cur_dir < dir_cnt_zone && tot_dir < tot_dir_cnt)
+    {
+      offset = part_offset + (zone_size*i_info.zone[cur_zone]) 
+                + (DIR_ENTRY_SIZE * cur_dir);
+      printDir(img, offset, sb, part_offset);
+      cur_dir++;
+      tot_dir++;
+    }
+    cur_dir = 0;
+    /*iterates through zone 0 of inode 1 (firstdata loc)*/
+    cur_zone++;    
+  }
+}
+void printDir(FILE *img, uint32_t offset, superblock sb, uint32_t part_offset)
 {
   directory dir;
   inode i_info;
-  uint32_t i = 0;
-  while(i >= 0)
+  dir = getDir(img, offset);
+  /*if name is null, at end of directory*/
+  /*if dir or file exists*/
+  if(dir.inode != 0)
   {
-    dir = getZone(sb, zoneSize, i, part_offset, img);
-    /*if name is null, at end of directory*/
-    if(dir.name[0] == '\0')
-    {
-      break;
-    }
-    /*if dir or file exists*/
-    else if(dir.inode != 0)
-    {
-      /*add inode info like read permission*/
-      i_info = getInode(img, sb, dir.inode, part_offset);
-      printPermissions(i_info.mode);
-      printCurFile(dir, i_info);
-    }
-    i++;    
+    /*add inode info like read permission*/
+    i_info = getInode(img, sb, dir.inode, part_offset);
+    printPermissions(i_info.mode);
+    printCurFile(dir, i_info);
   }
-}
-void printPermissions(uint16_t mode)
-{
-  char perm[11] = "";
-  char r = 'r';
-  char w = 'w';
-  char x = 'x';
-  char d = 'd';
-  char not = '-';
-  (mode & IS_DIR) ? strncat(perm, &d, 1) : strncat(perm, &not, 1);
-  (mode & OWN_R) ? strncat(perm, &r, 1) : strncat(perm, &not, 1);
-  (mode & OWN_W) ? strncat(perm, &w, 1) : strncat(perm, &not, 1);
-  (mode & OWN_X) ? strncat(perm, &x, 1) : strncat(perm, &not, 1);
-  (mode & GRP_R) ? strncat(perm, &r, 1) : strncat(perm, &not, 1);
-  (mode & GRP_W) ? strncat(perm, &w, 1) : strncat(perm, &not, 1);
-  (mode & GRP_X) ? strncat(perm, &x, 1) : strncat(perm, &not, 1);
-  (mode & OTR_R) ? strncat(perm, &r, 1) : strncat(perm, &not, 1);
-  (mode & OTR_W) ? strncat(perm, &w, 1) : strncat(perm, &not, 1);
-  (mode & OTR_X) ? strncat(perm, &x, 1) : strncat(perm, &not, 1);
-  printf("%s ", perm);
 }

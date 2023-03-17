@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define MINIX_MAGIC        0x4D5A
 #define INODE_SIZE_BYTES   64
@@ -109,10 +110,19 @@ typedef struct {
 /* helper functions */
 FILE *openImage(char *fname);
 superblock getSuperBlockData(FILE *img, int offset, int verbose);
-directory getZone(superblock sb, uint16_t z1_size, uint16_t cur_zone,     
-                  uint32_t part_offset, FILE *img); 
 inode getInode(FILE *img, superblock sb, uint32_t i_num, uint32_t part_offset);
-uint16_t getZoneSize(superblock sb);
+uint32_t getZoneSize(superblock sb);
 int get_partition(FILE *img, int partition, int subpartition, int verbose);
+void print_inode(inode *node);
+void printPermissions(uint16_t mode);
+
+
+directory getFinalDestination(superblock sb, uint32_t part_offset, 
+                      FILE *img, char *pathname);
+directory searchZones(FILE *img, superblock sb, uint32_t part_offset, 
+                        inode node, char *name);
+directory searchSingleZone(FILE *img, uint32_t zone_offset, 
+                            uint16_t dir_count, char *name);
+directory getDir(FILE *img, uint32_t offset);
 
 #endif /* _MINHELPER_H */
